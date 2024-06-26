@@ -3,12 +3,13 @@ from ddpgAgent import DDPGAgent
 import torch
 import numpy as np
 import tkinter as tk
+from safetyPolicy import select_safe_action
 
+model_dir = 'artifacts/2024/06/25/Run_1'
 
-model_dir = 'artifacts/2024/06/24/Run_1'
-# 100, 500, 700, 1000, 1100, 1500, 1700, 2000, 2100, 2500, 2700, 3000, 3100, 3200, 3300, 3400, 
 model_nums = [1000]
 env_id = 'SafetyPointCircle1-v0'
+# env = safety_gymnasium.make(env_id)
 env = safety_gymnasium.make(env_id, render_mode='human')
 
 state_dim = env.observation_space.shape[0]
@@ -38,6 +39,7 @@ for model_num in model_nums:
 
         for t in range(500):
             action = agent.select_action(np.array(state), noise_enabled=False)
+        
             next_state, reward, cost, done, truncated, _ = env.step(action)
     
             episode_reward += reward

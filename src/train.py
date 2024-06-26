@@ -2,6 +2,7 @@ from tqdm import tqdm
 import numpy as np
 import os
 import copy
+from safetyPolicy import select_safe_action
 
 SAVE_EVERY = 100
 
@@ -16,40 +17,21 @@ def train(env, agent, dir_name, num_episodes = 1000, batch_size = 64, start_epis
         episode_reward = 0
         episode_cost = 0
         for t in range(250):
-            # print('Episode:', episode, 'Step:', t)
-            cost = 1
+            print('Episode:', episode, 'Step:', t, end= "\r")
             action = agent.select_action(np.array(state))
-
             '''
-            Change to an action that does not have a cost.
-            But test it in the simulation environment first
+            If original action was itself safe, then it will be returned,
+            else a safe action will be returned.
             '''
-            simulation_cnt = 0
-            flag = True
-            while cost > 0:
-                '''
-                Since there is noise, it is guaranteed that an action
-                with no cost will be selected eventually
-                '''
-                simulation_cnt += 1
-                if simulation_cnt > 10:
-                    flag = False
-                    break
-                simulation_env = copy.deepcopy(env)
+            action, safe = select_safe_action(env, action)
 
-                action = agent.select_action(np.array(state))
-                next_state, reward, cost, done, truncated, _ = simulation_env.step(action)
-                del simulation_env
-            
-            if not flag:
+            if not safe:
+                print('Could not find safe action')
                 break
-            '''
-            Now that we have an action that does not have a cost,
-            we can use it in the real environment
-            '''
+            
             next_state, reward, cost, done, truncated, _ = env.step(action)
             if cost > 0:
-                print(cost)
+                break
             agent.replay_buffer.add(state, action, reward, next_state, cost, done)
 
             state = next_state
@@ -87,36 +69,19 @@ def train_with_plot(env, agent, dir_name, num_episodes = 1000, batch_size = 64, 
         episode_reward = 0
         episode_cost = 0
         for t in range(250):
-            print('Episode:', episode, 'Step:', t)
-            cost = 1
+            # print('Episode:', episode, 'Step:', t)
             action = agent.select_action(np.array(state))
 
             '''
-            Change to an action that does not have a cost.
-            But test it in the simulation environment first
+            If original action was itself safe, then it will be returned,
+            else a safe action will be returned.
             '''
-            simulation_cnt = 0
-            flag = True
-            while cost > 0:
-                '''
-                Since there is noise, it is guaranteed that an action
-                with no cost will be selected eventually
-                '''
-                simulation_cnt += 1
-                if simulation_cnt > 10:
-                    flag = False
-                    break
-                simulation_env = copy.deepcopy(env)
-                action = agent.select_action(np.array(state))
-                next_state, reward, cost, done, truncated, _ = simulation_env.step(action)
-                del simulation_env
-            
-            if not flag:
+            action, safe = select_safe_action(env, action)
+
+            if not safe:
+                print('Could not find safe action')
                 break
-            '''
-            Now that we have an action that does not have a cost,
-            we can use it in the real environment
-            '''
+            
             next_state, reward, cost, done, truncated, _ = env.step(action)
             if cost > 0:
                 print(cost)
