@@ -1,33 +1,27 @@
 import safety_gymnasium
 from ddpgAgent import DDPGAgent
-import torch
 import numpy as np
-import tkinter as tk
-from safetyPolicy import select_safe_action
 
-model_dir = 'artifacts/2024/06/25/Run_1'
+model_dir = 'artifacts/2024/06/27/Run_1'
 
-model_nums = [1000]
+model_nums = [500]
 env_id = 'SafetyPointCircle1-v0'
 # env = safety_gymnasium.make(env_id)
 env = safety_gymnasium.make(env_id, render_mode='human')
 
 state_dim = env.observation_space.shape[0]
 action_dim = env.action_space.shape[0]
-max_action = float(env.action_space.high[0])
-min_action = float(env.action_space.low[0])
+max_action = env.action_space.high
+min_action = env.action_space.low
 
-agent = DDPGAgent(state_dim, action_dim, max_action, min_action)
+agent = DDPGAgent(state_dim, action_dim, max_action, min_action, hidden_size_1 = 64, hidden_size_2 = 128, Prioritized_buffer=True)
 env.reset()
 
 for model_num in model_nums:
     print(f'********{model_num}********')
     # Load the trained model
-    agent.actor.load_state_dict(torch.load(f'{model_dir}/{model_num}/actor_{model_num}.pth'))
-    agent.actor_target.load_state_dict(agent.actor.state_dict())
-    agent.critic.load_state_dict(torch.load(f'{model_dir}/{model_num}/critic_{model_num}.pth'))
-    agent.critic_target.load_state_dict(agent.critic.state_dict())
-
+    agent.load_agent(model_dir + f'/{model_num}', model_num)
+    
     mean_reward = []
     mean_cost = []
 

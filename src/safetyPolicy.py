@@ -69,7 +69,7 @@ if __name__ == '__main__':
     # print(f'Agent action: {action}, Safe action: {safe_action}')
     # state, reward, cost, done, truncated, _ = env.step(action)
     
-    copy_env = copy.deepcopy(env)
+    # copy_env = copy.deepcopy(env)
 
     # if hasattr(copy_env, 'render_mode'):
     #     copy_env.render_parameters.mode = 'None'
@@ -77,10 +77,31 @@ if __name__ == '__main__':
     # else:
     #     print('No render_mode attribute')
 
-    if hasattr(copy_env.env, 'state'):
-        print(copy_env.env.state)
-    else:
-        print('No state attribute')
+    # if hasattr(copy_env.env, 'state'):
+    #     print(copy_env.env.state)
+    # else:
+    #     print('No state attribute')
+
+    # for episode in range(10):
+    #     env.reset()
+    #     for steps in range(250):
+    #         if episode % 2:
+    #             action = [0,0.5]
+    #         else:
+    #             action = [-1,0]
+    #         next_state, reward, cost, done, truncated, info = env.step(action)
+    #         print(info)
+        
+    env_id = 'SafetyPointCircle1-v0'
+    env = safety_gymnasium.make(env_id)
+    # env = safety_gymnasium.make(env_id, render_mode='human')
+
+    state_dim = env.observation_space.shape[0]
+    action_dim = env.action_space.shape[0]
+    max_action = env.action_space.high
+    min_action = env.action_space.low
+
+    print(max_action, min_action)
 
 
 

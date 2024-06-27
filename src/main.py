@@ -17,14 +17,13 @@ def main(dir_name, plot=False):
     env_id = 'SafetyPointCircle1-v0'
     env = safety_gymnasium.make(env_id)
     # env = safety_gymnasium.make(env_id, render_mode='human')
-    simulation_env = safety_gymnasium.make(env_id)
 
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
-    max_action = float(env.action_space.high[0])
-    min_action = float(env.action_space.low[0])
+    max_action = env.action_space.high
+    min_action = env.action_space.low
 
-    agent = DDPGAgent(state_dim, action_dim, max_action, min_action, Prioritized_buffer=True)
+    agent = DDPGAgent(state_dim, action_dim, max_action, min_action, hidden_size_1= 64, hidden_size_2 = 128, Prioritized_buffer=True)
 
     num_episodes = 1000
     batch_size = 64
@@ -50,7 +49,7 @@ def main(dir_name, plot=False):
             window_reward.add_data(episode, reward)
         for episode, cost in enumerate(episode_costs):
             window_cost.add_data(episode, cost)
-        training_gen = train_with_plot(env, agent, dir_name, num_episodes, batch_size, start_episode, simulation_env = simulation_env)
+        training_gen = train_with_plot(env, agent, dir_name, num_episodes, batch_size, start_episode)
         
         def update():
 
@@ -80,7 +79,7 @@ def main(dir_name, plot=False):
         new_episode_costs = []
 
         try:
-            new_episode_rewards, new_episode_costs = train(env, agent, dir_name, num_episodes, batch_size, start_episode, plot=False, simulation_env = simulation_env)
+            new_episode_rewards, new_episode_costs = train(env, agent, dir_name, num_episodes, batch_size, start_episode, plot=False)
         except ValueError as e:
             print(f"Error occurred during training: {e}")
     

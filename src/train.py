@@ -1,12 +1,11 @@
 from tqdm import tqdm
 import numpy as np
 import os
-import copy
 from safetyPolicy import select_safe_action
 
 SAVE_EVERY = 100
 
-def train(env, agent, dir_name, num_episodes = 1000, batch_size = 64, start_episode = 0, plot = False, simulation_env = None):
+def train(env, agent, dir_name, num_episodes = 1000, batch_size = 64, start_episode = 0, plot = False):
 
     episode_rewards = []
     episode_costs = []
@@ -19,19 +18,20 @@ def train(env, agent, dir_name, num_episodes = 1000, batch_size = 64, start_epis
         for t in range(250):
             print('Episode:', episode, 'Step:', t, end= "\r")
             action = agent.select_action(np.array(state))
-            '''
-            If original action was itself safe, then it will be returned,
-            else a safe action will be returned.
-            '''
-            action, safe = select_safe_action(env, action)
+            # '''
+            # If original action was itself safe, then it will be returned,
+            # else a safe action will be returned.
+            # '''
+            # action, safe = select_safe_action(env, action)
 
-            if not safe:
-                print('Could not find safe action')
-                break
+            # if not safe:
+            #     print('Could not find safe action')
+            #     break
             
             next_state, reward, cost, done, truncated, _ = env.step(action)
-            if cost > 0:
-                break
+            # if cost > 100:
+            #     done = True
+            #     truncated = True
             agent.replay_buffer.add(state, action, reward, next_state, cost, done)
 
             state = next_state
@@ -46,6 +46,7 @@ def train(env, agent, dir_name, num_episodes = 1000, batch_size = 64, start_epis
         
         episode_rewards.append(episode_reward)
         episode_costs.append(episode_cost)
+        os.system('cls' if os.name == 'nt' else 'clear')
 
         # if plot:
         #     yield episode, episode_reward, episode_cost
@@ -58,7 +59,7 @@ def train(env, agent, dir_name, num_episodes = 1000, batch_size = 64, start_epis
     if not plot:
         return episode_rewards, episode_costs
 
-def train_with_plot(env, agent, dir_name, num_episodes = 1000, batch_size = 64, start_episode = 0, simulation_env = None):
+def train_with_plot(env, agent, dir_name, num_episodes = 1000, batch_size = 64, start_episode = 0):
 
     episode_rewards = []
     episode_costs = []
@@ -72,19 +73,19 @@ def train_with_plot(env, agent, dir_name, num_episodes = 1000, batch_size = 64, 
             # print('Episode:', episode, 'Step:', t)
             action = agent.select_action(np.array(state))
 
-            '''
-            If original action was itself safe, then it will be returned,
-            else a safe action will be returned.
-            '''
-            action, safe = select_safe_action(env, action)
+            # '''
+            # If original action was itself safe, then it will be returned,
+            # else a safe action will be returned.
+            # '''
+            # action, safe = select_safe_action(env, action)
 
-            if not safe:
-                print('Could not find safe action')
-                break
+            # if not safe:
+            #     print('Could not find safe action')
+            #     break
             
             next_state, reward, cost, done, truncated, _ = env.step(action)
-            if cost > 0:
-                print(cost)
+            # if cost > 0:
+            #     print(cost)
             agent.replay_buffer.add(state, action, reward, next_state, cost, done)
 
             state = next_state
