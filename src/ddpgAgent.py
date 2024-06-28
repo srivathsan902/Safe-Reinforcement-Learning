@@ -99,7 +99,7 @@ class DDPGAgent:
         reward_errors = torch.abs(current_Q - target_Q).cpu().data.numpy()
         safety_errors = torch.abs(current_S - target_S).cpu().data.numpy()
 
-        errors = reward_errors + safety_errors
+        errors = reward_errors + 0.1*safety_errors
 
         if self.Prioritized_buffer:
             # Update priorities in PER buffer
@@ -145,36 +145,39 @@ class DDPGAgent:
             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
 
-    def save_agent(self, artifacts_path, episode):
-        dir_path = os.path.join(artifacts_path, f'{episode}')
+    def save(self, dir_path):
         if not os.path.exists(dir_path):
             os.makedirs(dir_path)
         
         paths = {
-            'actor': os.path.join(dir_path, f'actor_{episode}.pth'),
-            'critic': os.path.join(dir_path, f'critic_{episode}.pth'),
-            'actor_target': os.path.join(dir_path, f'actor_target_{episode}.pth'),
-            'critic_target': os.path.join(dir_path, f'critic_target_{episode}.pth'),
-            'safety_critic': os.path.join(dir_path, f'safety_critic_{episode}.pth'),
-            'safety_critic_target': os.path.join(dir_path, f'safety_critic_target_{episode}.pth'),
-            'replay_buffer': os.path.join(dir_path, f'replay_buffer_{episode}.pickle')
+            'actor': os.path.join(dir_path, f'actor.pth'),
+            'critic': os.path.join(dir_path, f'critic.pth'),
+            'actor_target': os.path.join(dir_path, f'actor_target.pth'),
+            'critic_target': os.path.join(dir_path, f'critic_target.pth'),
+            'safety_critic': os.path.join(dir_path, f'safety_critic.pth'),
+            'safety_critic_target': os.path.join(dir_path, f'safety_critic_target.pth'),
+            'replay_buffer': os.path.join(dir_path, f'replay_buffer.pickle')
         }
 
         for element, path in paths.items():
             getattr(self, element).save(path)
 
 
-    def load_agent(self, dir_path, episode):
+    def load(self, dir_path):
+        
+        if not os.path.exists(dir_path):
+            raise ValueError(f'Path {dir_path} does not exist')
         
         paths = {
-            'actor': os.path.join(dir_path, f'actor_{episode}.pth'),
-            'critic': os.path.join(dir_path, f'critic_{episode}.pth'),
-            'actor_target': os.path.join(dir_path, f'actor_target_{episode}.pth'),
-            'critic_target': os.path.join(dir_path, f'critic_target_{episode}.pth'),
-            'safety_critic': os.path.join(dir_path, f'safety_critic_{episode}.pth'),
-            'safety_critic_target': os.path.join(dir_path, f'safety_critic_target_{episode}.pth'),
-            'replay_buffer': os.path.join(dir_path, f'replay_buffer_{episode}.pickle')
+            'actor': os.path.join(dir_path, f'actor.pth'),
+            'critic': os.path.join(dir_path, f'critic.pth'),
+            'actor_target': os.path.join(dir_path, f'actor_target.pth'),
+            'critic_target': os.path.join(dir_path, f'critic_target.pth'),
+            'safety_critic': os.path.join(dir_path, f'safety_critic.pth'),
+            'safety_critic_target': os.path.join(dir_path, f'safety_critic_target.pth'),
+            'replay_buffer': os.path.join(dir_path, f'replay_buffer.pickle')
         }
+
 
         for element, path in paths.items():
             if os.path.exists(path):

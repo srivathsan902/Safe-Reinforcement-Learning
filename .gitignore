@@ -8,3 +8,5 @@ utils.py
 function_timer.py
 parallelize_actions.ipynb
 time_action.py
+wandb/
+.env

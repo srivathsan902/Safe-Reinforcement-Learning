@@ -1,32 +1,44 @@
-import argparse
 import os
-import shutil
 import sys
 import time
+import yaml
 import torch
+import wandb
+import shutil
+import argparse
 import numpy as np
 import safety_gymnasium
+from dotenv import load_dotenv
+from PyQt5.QtCore import QTimer
 from ddpgAgent import DDPGAgent
 from plotting import setup_plotting
-from PyQt5.QtCore import QTimer
 from train import train, train_with_plot
+
+load_dotenv()
 
 artifacts_folder = 'artifacts'
 
-def main(dir_name, plot=False):
-    env_id = 'SafetyPointCircle1-v0'
-    env = safety_gymnasium.make(env_id)
-    # env = safety_gymnasium.make(env_id, render_mode='human')
+def main(dir_name, params):
+
+    env_id = params['main'].get('env_id', 'SafetyPointCircle1-v0')
+    render_mode = params['main'].get('render_mode', None)
+    if render_mode == 'None':
+        env = safety_gymnasium.make(env_id)
+    else:
+        env = safety_gymnasium.make(env_id, render_mode = render_mode)
+
+    plot = params['main'].get('plot', False)
 
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
     max_action = env.action_space.high
     min_action = env.action_space.low
 
-    agent = DDPGAgent(state_dim, action_dim, max_action, min_action, hidden_size_1= 64, hidden_size_2 = 128, Prioritized_buffer=True)
+    hidden_size_1 = params['main']['agent'].get('hidden_size_1', 64)
+    hidden_size_2 = params['main'].get('hidden_size_2', 128)
+    Prioritized_buffer = params['main'].get('Prioritized_buffer', True)
 
-    num_episodes = 1000
-    batch_size = 64
+    agent = DDPGAgent(state_dim, action_dim, max_action, min_action, hidden_size_1 = hidden_size_1, hidden_size_2 = hidden_size_2, Prioritized_buffer = Prioritized_buffer)
 
     episode_rewards = []
     episode_costs = []
@@ -38,10 +50,42 @@ def main(dir_name, plot=False):
         agent.load_agent(dir_name, latest_episode)
         start_episode = latest_episode
     # Load existing reward and cost logs if they exist
-    if os.path.exists(os.path.join(dir_name,'episode_rewards.npy')) and os.path.exists(os.path.join(dir_name,'episode_costs.npy')):
+    if os.path.exists(os.path.join(dir_name,'episode_rewards.npy')):
         episode_rewards = np.load(os.path.join(dir_name,'episode_rewards.npy')).tolist()
-        episode_costs = np.load(os.path.join(dir_name,'episode_costs.npy')).tolist()
+    else:
+        episode_rewards = [0]*start_episode
 
+    if os.path.exists(os.path.join(dir_name,'episode_costs.npy')):
+        episode_costs = np.load(os.path.join(dir_name,'episode_costs.npy')).tolist()
+    else:
+        episode_costs = [0]*start_episode
+
+    if os.path.exists(os.path.join(dir_name,'episode_percent_safe_actions.npy')):
+        episode_percent_safe_actions = np.load(os.path.join(dir_name,'episode_percent_safe_actions.npy')).tolist()
+    else:
+        episode_percent_safe_actions = [0]*start_episode
+
+    wandb_enabled = params['base']['wandb_enabled']
+
+    if wandb_enabled:
+        try:
+            wandb_api_key = os.getenv('WANDB_API_KEY')
+            wandb.login(key=wandb_api_key)
+
+        except Exception as e:
+            print(f"Error occurred while logging into wandb: {e}")
+            sys.exit(1)
+
+        wandb.init(project='testing', name = f'{env_id}', config = params)
+        
+    if wandb_enabled:
+
+        for i in range(len(episode_rewards)):
+
+            wandb.log({
+                'Reward': episode_rewards[i],
+                'Cost': episode_rewards[i]
+            })
 
     if plot:
         app, window_reward, window_cost = setup_plotting()
@@ -49,18 +93,29 @@ def main(dir_name, plot=False):
             window_reward.add_data(episode, reward)
         for episode, cost in enumerate(episode_costs):
             window_cost.add_data(episode, cost)
-        training_gen = train_with_plot(env, agent, dir_name, num_episodes, batch_size, start_episode)
+        training_gen = train_with_plot(env, agent, dir_name, params, start_episode)
         
         def update():
 
             try:
-                episode, episode_reward, episode_cost = next(training_gen)
+                episode, episode_reward, episode_cost, percent_safe_actions = next(training_gen)
                 episode_rewards.append(episode_reward)
                 episode_costs.append(episode_cost)
                 window_reward.add_data(episode, episode_reward)
                 window_cost.add_data(episode, episode_cost)
+
+                if wandb_enabled:
+                    wandb.log({
+                        'Reward': episode_reward,
+                        'Cost': episode_cost,
+                        '% Safe Actions': percent_safe_actions
+                    })
                 
             except StopIteration:
+
+                if wandb_enabled:
+                    wandb.finish()
+
                 np.save(os.path.join(dir_name,'episode_rewards.npy'), np.array(episode_rewards))
                 np.save(os.path.join(dir_name,'episode_costs.npy'), np.array(episode_costs))
 
@@ -75,38 +130,40 @@ def main(dir_name, plot=False):
 
     else:
 
-        new_episode_rewards = []
-        new_episode_costs = []
+        training_gen = train(env, agent, dir_name, params, start_episode)
 
         try:
-            new_episode_rewards, new_episode_costs = train(env, agent, dir_name, num_episodes, batch_size, start_episode, plot=False)
+            # new_episode_rewards, new_episode_costs = train(env, agent, dir_name, params, start_episode)
+            for episode, reward, cost, percent_safe_actions in training_gen:
+                episode_rewards.append(reward)
+                episode_costs.append(cost)
+                episode_percent_safe_actions.append(percent_safe_actions)
+                
+                if wandb_enabled:
+                    wandb.log({
+                        'Reward': reward,
+                        'Cost': cost,
+                        '% Safe Actions': percent_safe_actions,
+                    })
+
         except ValueError as e:
             print(f"Error occurred during training: {e}")
-    
-        episode_rewards.extend(new_episode_rewards)
-        episode_costs.extend(new_episode_costs)
+
+        if wandb_enabled:
+            wandb.finish()
 
         np.save(os.path.join(dir_name,'episode_rewards.npy'), np.array(episode_rewards))
         np.save(os.path.join(dir_name,'episode_costs.npy'), np.array(episode_costs))
 
-
 if __name__ == '__main__':
+
+    with open('src/params.yaml', 'r') as f:
+        params = yaml.safe_load(f)
+
     '''
     Create the dir name based on the current time: dd_mm_yyyy_hh_mm_ss
     artifacts/yyyy/mm/dd/hh_mm should be the structure
     '''
-
-    # Create an argument parser
-    parser = argparse.ArgumentParser(description='Script to perform tasks.')
-
-    # Arguments for directory update and plotting
-    parser.add_argument('--update_from', metavar='RUN_NUMBER',
-                        help='Update from previous run directory specified by RUN_NAME (e.g., Run_1)')
-    parser.add_argument('--plot', action='store_true', help='Enable plotting')
-
-    args = parser.parse_args()
-
-    
     dir_name = os.path.join(artifacts_folder,
                         time.strftime('%Y'),
                         time.strftime('%m'),
@@ -118,41 +175,35 @@ if __name__ == '__main__':
     dir_name = os.path.join(dir_name, f'Run_{run}')
 
     try:
-        # Check if --update_from argument is provided
-        if args.update_from:
-            run_name_parts = args.update_from.split('_')
-            if len(run_name_parts) != 2 or not run_name_parts[1].isdigit():
-                raise ValueError("Invalid format for RUN_NAME. Should be like Run_1, Run_2, etc.")
-            old_run = int(run_name_parts[1])
-            old_dir_name = os.path.join(os.path.dirname(dir_name), f'Run_{old_run}')
+        if params['main'].get('update', False):
+            update_from = params['main'].get('update_from', False)
 
-            if os.path.exists(old_dir_name):
-                # Create new directory if it doesn't exist
-                os.makedirs(dir_name, exist_ok=True)
+            if update_from:
+                if os.path.exists(update_from):
+                    # Create new directory if it doesn't exist
+                    os.makedirs(dir_name, exist_ok=True)
 
-                # Copy contents from old_dir_name to new dir_name
-                for item in os.listdir(old_dir_name):
-                    old_item_path = os.path.join(old_dir_name, item)
-                    new_item_path = os.path.join(dir_name, item)
-                    if os.path.isdir(old_item_path):
-                        shutil.copytree(old_item_path, new_item_path)
-                    else:
-                        shutil.copy2(old_item_path, new_item_path)
+                    # Copy contents from old_dir_name to new dir_name
+                    for item in os.listdir(update_from):
+                        old_item_path = os.path.join(update_from, item)
+                        new_item_path = os.path.join(dir_name, item)
+                        if os.path.isdir(old_item_path):
+                            shutil.copytree(old_item_path, new_item_path)
+                        else:
+                            shutil.copy2(old_item_path, new_item_path)
 
-                print(f"Contents from '{old_dir_name}' copied to '{dir_name}'.")
+                    print(f"Contents from '{update_from}' copied to '{dir_name}'.")
+                else:
+                    raise FileNotFoundError(f"Directory '{update_from}' does not exist.")
+
             else:
-                raise FileNotFoundError(f"Directory '{old_dir_name}' does not exist.")
-
-        else:
-            os.makedirs(dir_name, exist_ok=True)
-        
-        plot = args.plot
+                os.makedirs(dir_name, exist_ok=True)
 
     except Exception as e:
         print(f"Error occurred: {e}")
         sys.exit(1)
-
-    main(dir_name, args.plot)
+    print('Reached here')
+    main(dir_name, params)
     
 
 
