@@ -10,3 +10,5 @@ parallelize_actions.ipynb
 time_action.py
 wandb/
 .env
+src/kk.py
+save_wandb.py
